@@ -1,0 +1,41 @@
+---
+description: Security and privacy requirements — always binding
+alwaysApply: true
+---
+
+# Security and privacy rules
+
+This app stores users' sensitive personal documents — receipts, tax forms,
+IDs, medical records, contracts. Treat every decision as if it will be
+security-reviewed before it ships, because it will be.
+
+- Every table containing user data must have Row Level Security enabled with
+  a policy scoped to `auth.uid()` as part of the same migration that creates
+  it — never "add RLS later."
+- Never log document content, email bodies, file contents, or full file
+  names with personally identifying info. Logs may contain IDs, status
+  codes, byte sizes, and timestamps only.
+- Any long-lived credential (OAuth refresh token, API key stored per-user)
+  is encrypted at the database-storage level and decrypted only inside the
+  worker process at the moment of use. It is never returned in an API
+  response and never sent to the client, under any circumstance, including
+  for debugging.
+- Session tokens live in httpOnly, Secure, SameSite cookies. Never
+  `localStorage` or `sessionStorage` for anything auth-related — this
+  applies even in scaffolding or "temporary" code, because temporary code
+  ships.
+- Re-validate file type, size, and the user's storage/plan quota on the
+  server for every upload, even though the client also checks. Client-side
+  checks are UX only, never the security boundary.
+- Every webhook handler (Stripe, inbound email) verifies its signature
+  against the raw request body before reading or acting on anything in the
+  payload. Reject unsigned or invalid-signature requests with no further
+  processing.
+- Treat every uploaded or received file as hostile input: enforce a hard
+  size limit, detect file type from the file's actual bytes (magic-byte
+  sniffing), not the extension or declared Content-Type, and never execute,
+  eval, or render as HTML anything extracted from a file or email.
+- Rate-limit every public-facing endpoint, especially auth routes and the
+  inbound-email webhook.
+- If a request in a phase prompt would weaken any rule above, stop and flag
+  it back to the founder instead of implementing it as asked.

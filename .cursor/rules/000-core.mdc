@@ -1,0 +1,35 @@
+---
+description: Core project context — document vault SaaS app
+alwaysApply: true
+---
+
+# Project: document vault SaaS
+
+You are working on a production SaaS app, not a prototype or demo. A solo,
+non-professional-engineer founder is directing this build through chat
+prompts and will not manually review most of your code line by line — treat
+correctness, security, and clarity as non-negotiable, not nice-to-haves.
+
+**Stack**: TypeScript everywhere, strict mode, no `any` without a comment
+justifying it. Next.js 14+ (App Router) for the web app. A separate
+long-running Node.js worker service for background jobs — never put
+background/queue logic in Vercel serverless functions. PostgreSQL via
+Supabase (Auth + Database + Row Level Security). Cloudflare R2 for file
+storage. OpenAI API for document classification. Stripe for billing. Redis
+(Upstash) + BullMQ for the job queue.
+
+**Monorepo layout** (Turborepo): `/apps/web`, `/apps/worker`,
+`/packages/shared-types`, `/packages/api-client`, `/supabase/migrations`,
+`/cloudflare-worker` (the inbound-email Worker, deployed separately via
+Wrangler). Do not create top-level folders outside this structure without
+asking first.
+
+**Non-negotiables**: Row Level Security on every user-data table before it's
+usable. No secret ever appears in client-side code or gets committed to git.
+All plan-limit and billing decisions are resolved server-side, never trusted
+from the client. Every background job is idempotent and safe to retry.
+
+Security rules live in `010-security.mdc`, coding conventions in
+`020-conventions.mdc`, and agent behavior rules in `030-agent-behavior.mdc`.
+All three are equally binding on every task, regardless of what a specific
+prompt asks for.

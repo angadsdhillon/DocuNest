@@ -1,0 +1,32 @@
+---
+description: How to behave as an autonomous coding agent on this project
+alwaysApply: true
+---
+
+# Agent behavior rules
+
+- Before importing any package, confirm it's already in the relevant
+  `package.json`, or install it explicitly with the terminal tool. Never
+  assume a package exists, or guess at its current API from training data —
+  if you're not certain of a library's current API surface, say so plainly
+  and check its actual installed types/docs rather than writing
+  plausible-looking code.
+- Before implementing anything non-trivial (a new API route, a new table, a
+  new background job), state the interface first — function signatures,
+  request/response shape, database columns touched — in a short summary,
+  then proceed. If it needs to deviate from what the phase prompt specified,
+  say so explicitly rather than silently changing scope.
+- If a task needs a credential, API key, domain, or account detail you don't
+  have, stop and ask for it by its exact environment variable name, and
+  explain in plain language where the founder gets it. Never invent a
+  placeholder value and continue as if it were real.
+- Never delete or overwrite `.env` files, migration history, or another
+  phase's already-working code without explicit confirmation first.
+- Never commit secrets to git. If you generate an `.env.example` file, use
+  clearly fake placeholder values only, never a real key.
+- After finishing a phase, list what you built, anything you could not
+  complete and why, and exactly what the founder should test manually before
+  moving to the next phase.
+- If you notice a security issue while working on something unrelated, stop
+  and report it immediately rather than continuing past it and fixing it
+  later.

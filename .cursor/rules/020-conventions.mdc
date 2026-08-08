@@ -1,0 +1,34 @@
+---
+description: Code style and architecture conventions for app and package source files
+globs: ["apps/**/*.ts", "apps/**/*.tsx", "packages/**/*.ts", "cloudflare-worker/**/*.ts"]
+alwaysApply: false
+---
+
+# Coding conventions
+
+- Business logic lives in `lib/` or `services/` folders, never inline in
+  React components or route handlers. Components and route handlers call
+  services; they don't contain decision logic themselves.
+- Every exported function has an explicit return type annotation. No
+  implicit `any`.
+- Use early returns and avoid nesting past two levels deep.
+- Name booleans with `is`/`has`/`should` prefixes (`isProcessing`, not
+  `processing`).
+- Every API route: validate the request body with a zod schema before
+  touching the database, return a consistent JSON error shape
+  (`{ error: { code, message } }`), and never leak internal error detail
+  (stack traces, raw SQL errors, provider error payloads) to the client —
+  log the detail server-side, return a generic message to the caller.
+- Any database write that isn't naturally idempotent (job processing,
+  webhook handling, sync jobs) must check whether it already ran before
+  acting, using the unique constraints defined in the schema.
+- Write plain, readable code a mid-level engineer could review in one pass.
+  Prefer clarity over cleverness — no dense one-line chains that need a
+  comment to explain what they do; write the clearer multi-line version
+  instead.
+- Comment only where intent isn't obvious from the code itself (a
+  non-obvious business rule, a workaround for a specific known issue) — not
+  comments that just restate what the next line does.
+- Match existing file and folder naming exactly before adding new files:
+  kebab-case for files, PascalCase for React components, camelCase for
+  functions and variables.
