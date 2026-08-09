@@ -1,0 +1,117 @@
+---
+description: The complete product specification for this app — who it's for, the full feature set including phases not yet built, the category taxonomy, the tech stack for every component, and the business model. Load this whenever a decision isn't fully pinned down by the current phase's literal instructions, or when asked about the product's overall purpose, users, features, roadmap, or tech stack.
+alwaysApply: false
+---
+
+# Product overview
+
+## What this is, in one sentence
+
+A web app (mobile planned later) that pulls documents like receipts,
+tickets, contracts, and statements out of a user's email — via email
+forwarding or via a manual upload / drag and drop files burtton
+now, and direct inbox sync in a later phase — automatically files each one
+into a clear category using AI, and gives the user a searchable,
+offline-capable personal document vault, so they never have to dig back
+through their inbox to find an old attachment again.
+
+## Who it's for
+
+Individual consumers and businesses or teams. People who accumulate
+important documents scattered across email: tax receipts, travel
+confirmations, insurance policies, medical paperwork, subscription
+confirmations, school documents. Assume non-technical users with low
+tolerance for friction — onboarding, uploading, and finding a document
+later should all feel close to effortless. Any UI copy, error message, or
+naming decision should read naturally to that person, not to a developer.
+
+## The core value loop
+
+1. A document arrives — manual upload, or forwarded to the user's personal
+   inbound email address.
+2. It's automatically extracted, classified into a category, and summarized
+   by AI.
+3. The user finds it again later either by browsing categories or
+   searching — in seconds, without opening their email client.
+4. It stays accessible even if deleted from the original inbox, and even
+   offline once the user explicitly saves it for offline access.
+
+## Feature set
+
+### Being built now — this build (v1)
+
+- Manual upload via a button and drag-and-drop
+- A unique per-user inbound email address for forwarding documents in, created when new user signs up
+- AI classification into a category, plus a short AI-generated summary of
+  the source email/document
+- Dashboard: category grid → category document list → document viewer with AI summary of the document beside opened document
+- Full-text search across summaries and filenames
+- Offline access to individually-saved documents (installable PWA)
+- Stripe subscription billing (Free / Pro / Business, gated on storage)
+- Account settings: view/regenerate inbound address, manage billing
+
+### Deliberately deferred — not forgotten, not to be built into this phase
+
+- Automatic Gmail/Outlook inbox scanning. This requires Google's CASA
+  third-party security assessment before it can be offered beyond ~100 test
+  users — a sequencing decision, not an oversight. Do not build OAuth
+  mailbox-reading scopes, or a `connected_mail_accounts`-style table, into
+  the current build unless a phase prompt explicitly asks for it.
+- iOS and Android native apps. Planned as React Native + Expo, sharing
+  types and API client code with the web app via the monorepo — this is
+  *why* business logic belongs in the backend/worker and shared packages
+  rather than directly in Next.js components, even at v1.
+- Push-based (real-time) mailbox sync.
+- Multi-category tagging — v1 is one primary category per document.
+- Cloud OCR/document-AI upgrade for scanned images — v1 uses free,
+  self-hosted Tesseract.
+
+### Explicitly out of scope, not planned
+
+- Team or multi-user shared accounts.
+- Editing document contents within the app — it's a vault, not an editor.
+
+## Category taxonomy
+
+Seeded per user at signup, user-editable afterward: Receipts & Purchases,
+Travel & Tickets, Bills & Utilities, Subscriptions & Memberships, Work &
+Business, School & Education, Insurance, Taxes & Finance, Medical & Health,
+Legal & Contracts, Identification & Personal Docs, and the permanent system
+category Needs Review, where low-AI-confidence results land instead of
+being silently misfiled.
+
+## Tech stack, by component
+
+| Component | Choice |
+|---|---|
+| Web app | Next.js (App Router) + TypeScript, Tailwind CSS |
+| Background worker | Standalone Node.js + TypeScript service — not a serverless function |
+| Database & auth | Supabase (PostgreSQL + Row Level Security + Supabase Auth) |
+| File storage | Cloudflare R2, envelope-encrypted at rest |
+| Inbound email parsing | Cloudflare Email Routing + a Cloudflare Worker |
+| AI classification | OpenAI API, structured JSON outputs |
+| Job queue | Upstash Redis + BullMQ |
+| Payments | Stripe (Checkout, Customer Portal, webhooks) |
+| Error monitoring | Sentry |
+| Web hosting | Vercel |
+| Worker hosting | Fly.io or Railway |
+| Monorepo tooling | Turborepo |
+| Future mobile | React Native + Expo, sharing types/API client with web |
+
+## Business model
+
+Freemium subscription via Stripe. The free tier ships with the app from
+day one; Pro and Business unlock more storage. The real variable cost
+driver is AI processing per document, not raw storage — pricing may evolve
+to reflect that later, but v1 gates on storage since it's the simplest
+thing to explain to a non-technical user.
+
+## How to use this when working on any single phase
+
+Every phase in this build is one piece of the loop described above. When a
+phase's literal instructions are ambiguous or silent on something, resolve
+it in the direction that serves this whole product, not just the narrowest
+reading of that one phase's prompt — and if a phase prompt seems to
+conflict with something in this file (for example, asking you to build
+something listed above as deliberately deferred), say so explicitly rather
+than proceeding either way silently.

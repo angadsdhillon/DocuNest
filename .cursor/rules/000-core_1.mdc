@@ -30,6 +30,8 @@ All plan-limit and billing decisions are resolved server-side, never trusted
 from the client. Every background job is idempotent and safe to retry.
 
 Security rules live in `010-security.mdc`, coding conventions in
-`020-conventions.mdc`, and agent behavior rules in `030-agent-behavior.mdc`.
-All three are equally binding on every task, regardless of what a specific
-prompt asks for.
+`020-conventions.mdc`, agent behavior rules in `030-agent-behavior.mdc` — all
+equally binding regardless of what a specific prompt asks for. The full
+product spec (target users, complete feature set, tech stack, roadmap)
+lives in `005-product-overview.mdc` — pull it in for any decision this file
+doesn't fully answer.
