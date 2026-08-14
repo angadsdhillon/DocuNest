@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState, type FormEvent, type ReactElement } from 'react';
 
 import {
@@ -40,6 +41,7 @@ export function AuthForm({
   initialNotice = null,
   action,
 }: AuthFormProps): ReactElement {
+  const router = useRouter();
   const [state, setState] = useState<AuthFormState>({
     ...EMPTY_AUTH_FORM_STATE,
     notice: initialNotice,
@@ -70,7 +72,15 @@ export function AuthForm({
     setIsSubmitting(true);
 
     try {
-      setState(await action(formData));
+      const result = await action(formData);
+
+      if (mode === 'login' && result.redirectTo) {
+        router.replace(result.redirectTo);
+        router.refresh();
+        return;
+      }
+
+      setState(result);
     } finally {
       setIsSubmitting(false);
     }

@@ -117,7 +117,12 @@ export async function signInAction(formData: FormData): Promise<AuthFormState> {
     };
   }
 
-  redirect(sanitizeRedirectPath(readRedirectTarget(formData)));
+  return {
+    formError: null,
+    fieldErrors: {},
+    notice: null,
+    redirectTo: sanitizeRedirectPath(readRedirectTarget(formData)),
+  };
 }
 
 export async function signOutAction(): Promise<void> {
