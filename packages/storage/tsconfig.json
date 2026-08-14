@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "noEmit": true,
+    "types": ["node"],
+    // Overrides the root config's NodeNext resolution: this package is only
+    // ever consumed through a bundler (Next.js webpack via transpilePackages
+    // in apps/web, esbuild via tsx in apps/worker), never run directly by
+    // Node's own ESM loader, so extensionless relative imports must resolve.
+    "module": "ESNext",
+    "moduleResolution": "Bundler"
+  },
+  "include": ["src/**/*.ts"]
+}

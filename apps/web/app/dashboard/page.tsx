@@ -5,6 +5,7 @@ import type { ReactElement } from 'react';
 import { signOutAction } from '@/lib/auth/actions';
 import { ROUTES } from '@/lib/auth/routes';
 import { getVerifiedUser } from '@/lib/auth/session';
+import { UploadZone } from '@/components/documents/upload-zone';
 import { getAccountOverview } from '@/lib/profile/profile-service';
 
 export const metadata: Metadata = {
@@ -71,6 +72,8 @@ export default async function DashboardPage(): Promise<ReactElement> {
               </div>
             </dl>
           </section>
+
+          <UploadZone />
 
           <section className="mt-8">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">
