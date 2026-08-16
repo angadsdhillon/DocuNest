@@ -41,6 +41,17 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
+/**
+ * Structured facts the AI classifier pulls out of a document, alongside its
+ * category guess and summary. Any of the three may be null when the
+ * document simply doesn't contain that kind of information.
+ */
+export type DocumentAiEntities = {
+  vendor: string | null;
+  amount: string | null;
+  date: string | null;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -125,6 +136,14 @@ export type Database = {
           checksum_sha256: string;
           ai_summary: string | null;
           ai_confidence: number | null;
+          /** Vendor/amount/date pulled out by the classifier, or all-null. */
+          ai_entities: Json | null;
+          /**
+           * Free-text category name the AI proposed that doesn't match any of
+           * the user's existing categories yet. Never auto-created; a future
+           * UI phase surfaces this as "AI suggests a new category: X".
+           */
+          ai_suggested_category: string | null;
           status: string;
           deleted_at: string | null;
           created_at: string;
@@ -144,6 +163,8 @@ export type Database = {
           checksum_sha256: string;
           ai_summary?: string | null;
           ai_confidence?: number | null;
+          ai_entities?: Json | null;
+          ai_suggested_category?: string | null;
           status?: string;
           deleted_at?: string | null;
           created_at?: string;
@@ -152,6 +173,8 @@ export type Database = {
           category_id?: string | null;
           ai_summary?: string | null;
           ai_confidence?: number | null;
+          ai_entities?: Json | null;
+          ai_suggested_category?: string | null;
           status?: string;
           deleted_at?: string | null;
         };
@@ -194,8 +217,9 @@ export type Category = Tables['categories']['Row'];
 
 export type DocumentRecord = Omit<
   Tables['documents']['Row'],
-  'source_type' | 'status' | 'search_vector'
+  'source_type' | 'status' | 'search_vector' | 'ai_entities'
 > & {
   source_type: DocumentSourceType;
   status: DocumentStatus;
+  ai_entities: DocumentAiEntities | null;
 };

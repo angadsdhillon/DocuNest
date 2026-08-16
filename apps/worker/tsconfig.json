@@ -3,7 +3,15 @@
   "compilerOptions": {
     "rootDir": "src",
     "noEmit": true,
-    "types": ["node"]
+    "types": ["node"],
+    // Overrides the root config's NodeNext resolution, same as
+    // packages/storage and packages/queue: the worker is only ever run via
+    // `tsx` (esbuild's bundler-style resolution), never Node's own ESM
+    // loader directly, so extensionless relative imports — and workspace
+    // packages resolved through their `exports` map straight to `.ts`
+    // source — must resolve under `tsc --noEmit` too.
+    "module": "ESNext",
+    "moduleResolution": "Bundler"
   },
   "include": ["src/**/*.ts"]
 }

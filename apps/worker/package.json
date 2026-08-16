@@ -10,11 +10,28 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@docunest/queue": "*",
     "@docunest/shared-types": "*",
-    "@docunest/storage": "*"
+    "@docunest/storage": "*",
+    "@supabase/supabase-js": "^2.112.2",
+    "bullmq": "^6.1.1",
+    "clamscan": "^2.4.0",
+    "dotenv": "^17.4.2",
+    "exceljs": "^4.4.0",
+    "heic-convert": "^2.1.0",
+    "ioredis": "^6.0.0",
+    "mammoth": "^1.12.1",
+    "openai": "^7.4.0",
+    "papaparse": "^5.6.0",
+    "pdf-parse": "^2.4.5",
+    "tesseract.js": "^7.0.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@types/node": "^22.13.10",
+    "@types/clamscan": "^2.4.1",
+    "@types/heic-convert": "^2.1.1",
+    "@types/node": "^20.17.24",
+    "@types/papaparse": "^5.5.2",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2"
   }

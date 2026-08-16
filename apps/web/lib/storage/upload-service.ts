@@ -27,6 +27,7 @@ import {
   MAX_UPLOAD_SIZE_BYTES,
   type AllowedDocumentExtension,
 } from '@/lib/documents/upload-constraints';
+import { enqueueDocumentProcessing } from '@/lib/queue/document-processing-queue';
 import { getStorageEnvironment } from '@/lib/storage/env';
 import { getR2BucketName, getR2Client } from '@/lib/storage/r2-client';
 import { getStorageUsage, wouldExceedQuota } from '@/lib/storage/quota-service';
@@ -327,6 +328,11 @@ export async function completeManualUpload(
     };
   }
 
+  // Enqueue Phase 3's processing pipeline (virus scan, extraction, AI
+  // classification) now that the encrypted file and its row both exist.
+  // Best-effort by design — see `enqueueDocumentProcessing`'s doc comment.
+  await enqueueDocumentProcessing(params.documentId);
+
   const document: DocumentRecord = {
     id: data.id,
     user_id: data.user_id,
@@ -340,6 +346,8 @@ export async function completeManualUpload(
     checksum_sha256: data.checksum_sha256,
     ai_summary: data.ai_summary,
     ai_confidence: data.ai_confidence,
+    ai_entities: null,
+    ai_suggested_category: data.ai_suggested_category,
     status: 'processing',
     deleted_at: data.deleted_at,
     created_at: data.created_at,
