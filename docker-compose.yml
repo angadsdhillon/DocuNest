@@ -1,0 +1,33 @@
+# Local development only — ClamAV sidecar for apps/worker virus scanning.
+#
+# The official image runs freshclam + clamd together. clamd listens on TCP
+# 3310 inside the container (confirmed in ClamAV's Docker docs); this file
+# publishes that port to localhost:3310 so the worker's existing
+# CLAMAV_HOST/CLAMAV_PORT settings work unchanged.
+#
+# Image tag `stable_base` ships without bundled signatures — freshclam
+# downloads them on first start into the named volume below, so later
+# restarts reuse the database instead of re-downloading from scratch.
+#
+# Docs: https://docs.clamav.net/manual/Installing/Docker.html
+
+services:
+  clamav:
+    image: clamav/clamav:stable_base
+    container_name: docunest-clamav
+    restart: unless-stopped
+    ports:
+      - '3310:3310'
+    volumes:
+      - clamav_virus_db:/var/lib/clamav
+    healthcheck:
+      # Bundled in the official image: sends PING to clamd on 3310, expects
+      # PONG. Matches the image's own HEALTHCHECK (6m start_period).
+      test: ['CMD', 'clamdcheck.sh']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 6m
+
+volumes:
+  clamav_virus_db:
