@@ -1,46 +1,25 @@
 import 'server-only';
 
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 
 import {
-  buildDocumentStorageKey,
   buildStagingStorageKey,
   createPresignedPutUrl,
   deleteObjectIgnoringNotFound,
-  ENCRYPTION_METADATA_KEYS,
-  encryptFileBuffer,
-  getObjectBuffer,
-  headObject,
-  looksLikePlainText,
-  parseMasterKey,
-  putObject,
-  sniffFileType,
-  type SniffedFileType,
 } from '@docunest/storage';
 import type { DocumentRecord } from '@docunest/shared-types';
 
 import {
   ALLOWED_DOCUMENT_EXTENSIONS,
-  EXTENSION_MIME_TYPES,
   getFileExtension,
   isAllowedDocumentExtension,
   MAX_UPLOAD_SIZE_BYTES,
-  type AllowedDocumentExtension,
 } from '@/lib/documents/upload-constraints';
 import { enqueueDocumentProcessing } from '@/lib/queue/document-processing-queue';
-import { getStorageEnvironment } from '@/lib/storage/env';
+import { verifyAndEncryptStagedObject } from '@/lib/storage/document-ingest';
 import { getR2BucketName, getR2Client } from '@/lib/storage/r2-client';
 import { getStorageUsage, wouldExceedQuota } from '@/lib/storage/quota-service';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-
-/**
- * Bytes read from a staged object to sniff its real file type. Every format
- * in the allow-list identifies itself well within the first few KB (PDF,
- * PNG and JPEG within the first dozen bytes; the zip-based Office formats
- * and HEIC's ftyp box need a bit more), so this avoids downloading the
- * whole object twice for the common case where it will be rejected.
- */
-const TYPE_SNIFF_BYTE_COUNT = 4_100;
 
 /** How long a presigned staging upload URL stays valid. */
 const STAGING_UPLOAD_URL_TTL_SECONDS = 5 * 60;
@@ -166,137 +145,32 @@ export type CompleteUploadResult =
 
 /**
  * Called once the client's direct-to-R2 upload finishes. Nothing here trusts
- * the client's word that the upload succeeded: every check re-reads the
- * object straight from R2.
- *
- * Flow: confirm the staged object really exists and read its real size ->
- * re-check the size cap and quota against that real size -> sniff the file's
- * actual content and confirm it matches the claimed extension -> download,
- * encrypt, and write it to its permanent key -> delete the staging object ->
- * insert the `documents` row. Any failure along the way deletes whatever
- * was written and returns before a `documents` row is created, so there is
- * never a row pointing at a file that isn't safely stored, and never a
- * permanent object left behind for a row that doesn't exist.
+ * the client's word that the upload succeeded — `verifyAndEncryptStagedObject`
+ * re-reads the object straight from R2, checks it against the type
+ * allow-list, the size cap and quota, then encrypts it into its permanent
+ * key. This function's own job is just the manual-upload-specific part:
+ * inserting the `documents` row with `source_type: 'manual_upload'` and
+ * enqueuing processing. Any failure along the way returns before a
+ * `documents` row is created, so there is never a row pointing at a file
+ * that isn't safely stored, and never a permanent object left behind for a
+ * row that doesn't exist.
  */
 export async function completeManualUpload(
   params: CompleteUploadParams,
 ): Promise<CompleteUploadResult> {
-  const extension = getFileExtension(params.originalFilename);
-
-  if (!isAllowedDocumentExtension(extension)) {
-    return {
-      status: 'unsupported-type',
-      message: `Files of type "${extension ?? 'unknown'}" are not supported.`,
-    };
-  }
-
-  const r2 = getR2Client();
-  const bucket = getR2BucketName();
-  const stagingKey = buildStagingStorageKey(
-    params.userId,
-    params.documentId,
-    params.originalFilename,
-  );
-
-  const stagedObject = await headObject(r2, bucket, stagingKey);
-
-  if (!stagedObject) {
-    return {
-      status: 'not-found',
-      message:
-        'We could not find that upload — it may have failed, expired, or already been completed. Please try uploading again.',
-    };
-  }
-
-  const actualSizeBytes = stagedObject.contentLengthBytes;
-
-  if (actualSizeBytes <= 0 || actualSizeBytes > MAX_UPLOAD_SIZE_BYTES) {
-    await deleteObjectIgnoringNotFound(r2, bucket, stagingKey);
-    return { status: 'too-large', message: 'Files must be no larger than 25MB.' };
-  }
-
-  const usage = await getStorageUsage(params.userId);
-
-  if (!usage) {
-    return {
-      status: 'error',
-      message: 'Could not verify your storage usage. Please try again.',
-    };
-  }
-
-  if (wouldExceedQuota(usage, actualSizeBytes)) {
-    await deleteObjectIgnoringNotFound(r2, bucket, stagingKey);
-    return {
-      status: 'quota-exceeded',
-      message:
-        'This upload would put you over your storage limit. Delete something first, or upgrade your plan.',
-    };
-  }
-
-  const sniffSample = await getObjectBuffer(r2, bucket, stagingKey, {
-    startInclusive: 0,
-    endInclusive: Math.min(TYPE_SNIFF_BYTE_COUNT, actualSizeBytes) - 1,
-  });
-  const sniffed = await sniffFileType(sniffSample);
-  const typeCheck = matchesDeclaredExtension(extension, sniffed, sniffSample);
-
-  if (!typeCheck.ok) {
-    await deleteObjectIgnoringNotFound(r2, bucket, stagingKey);
-    return { status: 'unsupported-type', message: typeCheck.reason };
-  }
-
-  const plaintext = await getObjectBuffer(r2, bucket, stagingKey);
-
-  if (plaintext.length !== actualSizeBytes) {
-    await deleteObjectIgnoringNotFound(r2, bucket, stagingKey);
-    return {
-      status: 'error',
-      message: 'The uploaded file could not be verified. Please try again.',
-    };
-  }
-
-  const masterKey = parseMasterKey(
-    getStorageEnvironment().DOCUMENT_ENCRYPTION_MASTER_KEY,
-  );
-  const encrypted = encryptFileBuffer(masterKey, plaintext);
-  const checksumSha256 = createHash('sha256').update(plaintext).digest('hex');
-  const finalKey = buildDocumentStorageKey(
-    params.userId,
-    params.documentId,
-    params.originalFilename,
-  );
-
-  try {
-    await putObject(r2, bucket, finalKey, encrypted.ciphertext, {
-      // The object's own bytes are now ciphertext, not the original file
-      // format, so a generic content type is stored on the object itself.
-      // The real, magic-byte-verified mime type is recorded in the
-      // `documents` row instead.
-      contentType: 'application/octet-stream',
-      metadata: {
-        [ENCRYPTION_METADATA_KEYS.iv]: encrypted.iv.toString('base64'),
-        [ENCRYPTION_METADATA_KEYS.encryptedDataKey]:
-          encrypted.encryptedDataKey.toString('base64'),
-        [ENCRYPTION_METADATA_KEYS.originalSizeBytes]: String(plaintext.length),
-      },
-    });
-  } catch (error) {
-    console.error(
-      `[upload] failed to write encrypted object (documentId=${params.documentId})`,
-      error,
-    );
-    return {
-      status: 'error',
-      message: 'Could not store the uploaded file. Please try again.',
-    };
-  }
-
-  // Best-effort: the staging object sits under a prefix that should also
-  // carry a bucket lifecycle rule expiring it after ~24h, as a backstop for
-  // any cleanup call that fails to run (e.g. the server crashes right here).
-  await deleteObjectIgnoringNotFound(r2, bucket, stagingKey);
-
   const supabase = createSupabaseServerClient();
+
+  const verified = await verifyAndEncryptStagedObject({
+    supabase,
+    userId: params.userId,
+    documentId: params.documentId,
+    originalFilename: params.originalFilename,
+  });
+
+  if (verified.status !== 'ok') {
+    return verified;
+  }
+
   const { data, error } = await supabase
     .from('documents')
     .insert({
@@ -305,10 +179,10 @@ export async function completeManualUpload(
       category_id: null,
       source_type: 'manual_upload',
       original_filename: params.originalFilename,
-      mime_type: typeCheck.mimeType,
-      file_size_bytes: plaintext.length,
-      storage_key: finalKey,
-      checksum_sha256: checksumSha256,
+      mime_type: verified.mimeType,
+      file_size_bytes: verified.sizeBytes,
+      storage_key: verified.finalKey,
+      checksum_sha256: verified.checksumSha256,
       status: 'processing',
     })
     .select('*')
@@ -320,7 +194,7 @@ export async function completeManualUpload(
     );
     // Don't leave an orphaned encrypted object with no database row pointing
     // at it — better to make the user retry the whole upload.
-    await deleteObjectIgnoringNotFound(r2, bucket, finalKey);
+    await deleteObjectIgnoringNotFound(getR2Client(), getR2BucketName(), verified.finalKey);
     return {
       status: 'error',
       message:
@@ -354,46 +228,4 @@ export async function completeManualUpload(
   };
 
   return { status: 'ok', document };
-}
-
-type TypeMatchResult =
-  | { ok: true; mimeType: string }
-  | { ok: false; reason: string };
-
-function matchesDeclaredExtension(
-  extension: AllowedDocumentExtension,
-  sniffed: SniffedFileType | undefined,
-  sampleBuffer: Buffer,
-): TypeMatchResult {
-  if (extension === 'csv') {
-    if (sniffed) {
-      return {
-        ok: false,
-        reason: `This file's content looks like a ${sniffed.mime} file, not a CSV — please check the file and try again.`,
-      };
-    }
-
-    if (!looksLikePlainText(sampleBuffer)) {
-      return {
-        ok: false,
-        reason:
-          "This file's content does not look like plain-text CSV — please check the file and try again.",
-      };
-    }
-
-    return { ok: true, mimeType: 'text/csv' };
-  }
-
-  const allowedMimeTypes = EXTENSION_MIME_TYPES[extension];
-
-  if (!sniffed || !allowedMimeTypes.includes(sniffed.mime)) {
-    return {
-      ok: false,
-      reason: sniffed
-        ? `This file's content looks like a ${sniffed.mime} file, not a .${extension} file — please check the file and try again.`
-        : `This file's content could not be verified as a .${extension} file — please check the file and try again.`,
-    };
-  }
-
-  return { ok: true, mimeType: sniffed.mime };
 }

@@ -5,8 +5,12 @@ import { z } from 'zod';
  * missing value fails with a readable message instead of a confusing crash
  * deep inside the Supabase client.
  *
- * `SUPABASE_SERVICE_ROLE_KEY` is deliberately absent: nothing in `apps/web`
- * may use it. Service-role work belongs in `apps/worker`.
+ * `SUPABASE_SERVICE_ROLE_KEY` is deliberately absent here: nothing that
+ * serves a user session may use it. Service-role work belongs in
+ * `apps/worker` — with one narrow, deliberate exception starting Phase 4:
+ * `lib/inbound-email/env.ts` / `lib/supabase/service-client.ts`, used only by
+ * the inbound-email webhook, which has no user session to scope RLS to. See
+ * the doc comment on `getSupabaseServiceClient()` for why.
  */
 const environmentSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.url(

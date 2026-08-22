@@ -1,0 +1,16 @@
+# Local dev secrets for `wrangler dev` — copy to `.dev.vars` (gitignored) and
+# fill in real values. Non-secret config (INBOUND_EMAIL_DOMAIN,
+# BACKEND_BASE_URL) lives in wrangler.toml's [vars] instead, since it isn't
+# sensitive and needs to be visible without a separate file.
+#
+# In production, this secret is set with `wrangler secret put
+# INBOUND_WORKER_SHARED_SECRET` instead — never in wrangler.toml, never
+# committed. It must be the exact same value as apps/web's
+# INBOUND_WORKER_SHARED_SECRET (in apps/web/.env.local locally, or the
+# Vercel project's environment variables in production), since the backend
+# compares them byte-for-byte.
+INBOUND_WORKER_SHARED_SECRET=replace_with_the_same_long_random_secret_apps_web_uses
+
+# Optional: uncomment to point `wrangler dev` at a local web app instead of
+# the production BACKEND_BASE_URL in wrangler.toml's [vars].
+# BACKEND_BASE_URL=http://localhost:3000

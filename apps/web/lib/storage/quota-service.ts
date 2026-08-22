@@ -1,5 +1,6 @@
 import 'server-only';
 
+import type { DocuNestSupabaseClient } from '@/lib/supabase/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 export type StorageUsage = {
@@ -9,8 +10,15 @@ export type StorageUsage = {
 
 /**
  * Sums a user's active (non-deleted) documents against their plan's storage
- * allowance. Row Level Security already scopes both queries to the calling
- * user, so this can never see or count another user's bytes.
+ * allowance. Defaults to the request-scoped, RLS-bound client (the normal
+ * case: a signed-in user checking their own quota during manual upload), but
+ * accepts an explicit client so server-to-server callers with no user
+ * session — the inbound-email webhook, which authenticates via a shared
+ * secret instead of a Supabase session and must check an arbitrary user's
+ * quota by id — can pass in the service-role client instead. Row Level
+ * Security (for the default client) or the explicit `userId` filter (for
+ * the service-role client) both ensure this can never see or count another
+ * user's bytes.
  *
  * Reads every row's `file_size_bytes` and sums client-side rather than
  * using a database aggregate — simplest option at v1's scale. If document
@@ -20,9 +28,8 @@ export type StorageUsage = {
  */
 export async function getStorageUsage(
   userId: string,
+  supabase: DocuNestSupabaseClient = createSupabaseServerClient(),
 ): Promise<StorageUsage | null> {
-  const supabase = createSupabaseServerClient();
-
   const [profileResult, documentsResult] = await Promise.all([
     supabase
       .from('profiles')

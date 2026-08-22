@@ -1,0 +1,26 @@
+name = "docunest-inbound-email"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Non-secret configuration. `INBOUND_EMAIL_DOMAIN` must match exactly the
+# domain your Cloudflare Email Routing catch-all rule is configured for
+# (see the deployment notes in this folder's README) — it's used only to
+# strip the "@domain" suffix off the recipient address to recover the
+# per-user token, never to decide whether to accept the message (Email
+# Routing itself already guarantees this Worker only ever receives mail for
+# a domain/rule it's bound to).
+[vars]
+INBOUND_EMAIL_DOMAIN = "inbox.docunest.uk"
+# Production apps/web URL on Vercel. When running `wrangler dev` locally
+# against a local `npm run dev` web app instead, override this without
+# editing this file: add `BACKEND_BASE_URL="http://localhost:3000"` to
+# `.dev.vars` (gitignored) — wrangler prefers `.dev.vars` over `[vars]` in
+# dev, and this file stays correct for real `wrangler deploy` either way.
+BACKEND_BASE_URL = "https://www.docunest.uk"
+
+# `INBOUND_WORKER_SHARED_SECRET` is NOT set here — it's a secret, so it's
+# set with `wrangler secret put INBOUND_WORKER_SHARED_SECRET` instead (see
+# README.md). Values in `[vars]` end up readable in the dashboard and in
+# `wrangler.toml` itself if committed; secrets set via `wrangler secret`
+# never appear in either place.
